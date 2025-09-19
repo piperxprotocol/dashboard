@@ -1,0 +1,14 @@
+name = "lending-backend"
+main = "src/index.ts"
+compatibility_date = "2025-07-28"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[kv_namespaces]]
+binding = "PIPERX_KV"
+id = "e2b1b17b2c2543f1959b6e51d7e913e1"
+
+[observability]
+enabled = true

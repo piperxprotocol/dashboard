@@ -1,0 +1,7 @@
+{
+    "scripts": {
+      "dev": "wrangler dev",
+      "build": "tsup src/index.ts --out-dir dist --format esm"
+    }
+  }
+  
