@@ -1,26 +1,17 @@
 {
-  "name": "lending-backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "piperx-dashboard",
+  "packageManager": "yarn@4.6.0",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "wrangler": "wrangler"
+    "dev": "wrangler dev",
+    "build": "tsc",
+    "start": "wrangler dev"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "ethcall": "^6.0.6",
-    "ethers": "^6.15.0",
-    "hono": "^4.8.9"
+    "hono": "^4.9.8"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250801.0",
-    "typescript": "^5.8.3"
-  },
-  "packageManager": "yarn@4.6.0+sha512.5383cc12567a95f1d668fbe762dfe0075c595b4bfff433be478dbbe24e05251a8e8c3eb992a986667c1d53b6c3a9c85b8398c35a960587fbd9fa3a0915406728"
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.38.0"
+  }
 }

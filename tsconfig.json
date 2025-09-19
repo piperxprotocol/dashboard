@@ -1,21 +1,20 @@
 {
-    "compilerOptions": {
-      "target": "ES2022",
-      "lib": ["DOM", "ES2022"],
-      "module": "ESNext",
-      "moduleResolution": "Node",
-      "esModuleInterop": true,
-      "skipLibCheck": true,
-      "forceConsistentCasingInFileNames": true,
-      "strict": true,
-      "types": ["@cloudflare/workers-types"],
-      "baseUrl": ".",
-      "paths": {
-        "~/*": ["./src/*"]
-      },
-      "outDir": "dist"
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["./src/*"]
     },
-    "include": ["src", "compound-api"],
-    "exclude": ["node_modules", "dist"]
-  }
-  
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
