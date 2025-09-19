@@ -180,3 +180,4 @@ piperxog-backend/*.sql
 piperxog-backend/.venv/
 piperxog-backend/.DS_Store
 .DS_Store
+.npm-cache/
