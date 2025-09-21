@@ -102,7 +102,7 @@ tradesRouter.get('/metrics', async (c) => {
         token1: { id: string; symbol: string };
         volume24h: number;
         volume7d: number;
-        volume30d: number;
+        volume14d: number;
         // daily: { timestamp: number; volumeUSD: number; volumeNative: number }[];
       }
     > = {};
@@ -138,7 +138,7 @@ tradesRouter.get('/metrics', async (c) => {
         },
         volume24h,
         volume7d: vols.slice(0, 7).reduce((a, b) => a + b.volumeUSD, 0),
-        volume30d: vols.slice(0, 30).reduce((a, b) => a + b.volumeUSD, 0),
+        volume14d: vols.slice(0, 30).reduce((a, b) => a + b.volumeUSD, 0),
         // daily: vols,
       };
     });
