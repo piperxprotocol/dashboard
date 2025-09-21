@@ -1,14 +1,15 @@
 import { Hono } from 'hono';
 import { querySubgraph } from '../services/subgraph';
+import poolsConfig from "../config/liquidityPools.json";
 
-const usersRouter = new Hono();
+const userStatsRouter = new Hono();
 
-const GET_TOKEN_SWAPS_IN_TIME_RANGE = `
+const GET_TOKEN_SWAPS = `
   query GetTokenSwapsInTimeRange(
-    $pairIds: [String!]!,
-    $startTime: String!,
-    $endTime: String!,
-    $limit: Int!,
+    $pairIds: [String!]!, 
+    $startTime: String!, 
+    $endTime: String!, 
+    $limit: Int!, 
     $skip: Int!
   ) {
     tokenSwaps(
@@ -28,87 +29,111 @@ const GET_TOKEN_SWAPS_IN_TIME_RANGE = `
   }
 `;
 
-type Swap = {
-  account: { id: string };
-  timestamp: string;
+type TokenSwap = {
+    account: { id: string };
+    timestamp: string;
 };
 
-async function fetchAllSwaps(
-  platform: 'piperx' | 'storyhunt',
-  pairIds: string[],
-  startTime: string,
-  endTime: string
-): Promise<Swap[]> {
-  const limit = 1000;
-  let skip = 0;
-  let all: Swap[] = [];
+type TokenSwapResponse = {
+    tokenSwaps: TokenSwap[];
+};
 
-  while (true) {
-    const res = await querySubgraph<{ tokenSwaps: Swap[] }>(
-      platform,
-      GET_TOKEN_SWAPS_IN_TIME_RANGE,
-      { pairIds, startTime, endTime, limit, skip }
-    );
 
-    const batch = res.tokenSwaps || [];
-    all = all.concat(batch);
+userStatsRouter.get('/metrics', async (c) => {
+    try {
+        const platform = (c.req.query('platform') || 'piperx') as 'piperx' | 'storyhunt';
+        const now = Date.now() * 1000;
+        const defaultStart = now - 30 * 24 * 60 * 60 * 1_000_000;
+        const hasUserTime = !!(c.req.query('startTime') && c.req.query('endTime'));
+        const startTime = c.req.query('startTime') || String(defaultStart);
+        const endTime = c.req.query('endTime') || String(now);
 
-    if (batch.length < limit) break;
-    skip += limit;
-  }
-  return all;
-}
+        let pairIds: string[] = [];
+        if (c.req.query('pairIds')) {
+            pairIds = c.req.query('pairIds')!.split(',');
+        } else {
+            pairIds = Array.from(
+                new Set(
+                    Object.values(poolsConfig)
+                        .filter((pool: any) => pool.isExist)
+                        .map((pool: any) => pool.poolAddress.toLowerCase())
+                )
+            );
+        }
 
-function groupUsers(swaps: Swap[]) {
-  const dau: Record<string, Set<string>> = {};
-  const wau: Record<string, Set<string>> = {};
-  const mau: Record<string, Set<string>> = {};
+        if (!pairIds.length) {
+            return c.json({ error: 'No valid pairIds found' }, 400);
+        }
 
-  for (const swap of swaps) {
-    const ts = new Date(parseInt(swap.timestamp) * 1000); // timestamp 秒级
-    const user = swap.account.id;
+        let swaps: TokenSwap[] = [];
+        let skip = 0;
+        const limit = 1000;
+        let hasMore = true;
 
-    // day
-    const day = ts.toISOString().slice(0, 10); // YYYY-MM-DD
-    if (!dau[day]) dau[day] = new Set();
-    dau[day].add(user);
+        while (hasMore) {
+            const resp = await querySubgraph<TokenSwapResponse>(
+                platform,
+                GET_TOKEN_SWAPS,
+                { pairIds, startTime, endTime, limit, skip }
+            );
+            console.log(resp)
+            const data = resp.tokenSwaps || [];
+            swaps = swaps.concat(data);
+            console.log(swaps)
 
-    // week (ISO week number)
-    const week = `${ts.getUTCFullYear()}-W${Math.ceil(ts.getUTCDate() / 7)}`;
-    if (!wau[week]) wau[week] = new Set();
-    wau[week].add(user);
+            if (data.length < limit) {
+                hasMore = false;
+            } else {
+                skip += limit;
+            }
+        }
 
-    // month
-    const month = ts.toISOString().slice(0, 7); // YYYY-MM
-    if (!mau[month]) mau[month] = new Set();
-    mau[month].add(user);
-  }
+        if (hasUserTime) {
+            const uniqueUsers = new Set(swaps.map(s => s.account.id.toLowerCase()));
+            return c.json({
+                platform,
+                metrics: {
+                    uniqueUsers: {
+                        custom: uniqueUsers.size
+                    }
+                }
+            });
+        }
 
-  return {
-    dau: Object.entries(dau).map(([date, set]) => ({ date, count: set.size })),
-    wau: Object.entries(wau).map(([week, set]) => ({ week, count: set.size })),
-    mau: Object.entries(mau).map(([month, set]) => ({ month, count: set.size })),
-  };
-}
+        const unique1d = new Set<string>();
+        const unique7d = new Set<string>();
+        const unique30d = new Set<string>();
 
-usersRouter.get('/users/metrics', async (c) => {
-  try {
-    const platform = (c.req.query('platform') || 'piperx') as 'piperx' | 'storyhunt';
-    const pairIds = (c.req.query('pairIds') || '').split(',').map(id => id.toLowerCase());
-    const startTime = c.req.query('startTime');
-    const endTime = c.req.query('endTime');
+        for (const s of swaps) {
+            const acc = s.account.id.toLowerCase();
+            const ts = parseInt(s.timestamp);
 
-    if (!pairIds.length || !startTime || !endTime) {
-      return c.json({ error: 'Missing required parameters' }, 400);
+            if (ts >= now - 1 * 24 * 60 * 60 * 1_000_000) {
+                unique1d.add(acc);
+            }
+            if (ts >= now - 7 * 24 * 60 * 60 * 1_000_000) {
+                unique7d.add(acc);
+            }
+            if (ts >= now - 30 * 24 * 60 * 60 * 1_000_000) {
+                unique30d.add(acc);
+            }
+        }
+
+        return c.json({
+            platform,
+            metrics: {
+                uniqueUsers: {
+                    "1d": unique1d.size,
+                    "7d": unique7d.size,
+                    "30d": unique30d.size,
+                }
+            }
+        });
+
+    } catch (e: any) {
+        console.error('Error in /metrics:', e);
+        return c.json({ error: 'Internal server error', message: e.message }, 500);
     }
-
-    const swaps = await fetchAllSwaps(platform, pairIds, startTime, endTime);
-    const { dau, wau, mau } = groupUsers(swaps);
-
-    return c.json({ platform, pairIds, dau, wau, mau });
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500);
-  }
 });
 
-export default usersRouter;
+export default userStatsRouter;
