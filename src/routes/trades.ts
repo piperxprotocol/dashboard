@@ -66,7 +66,8 @@ type HourlyVolumeResponse = {
 
 tradesRouter.get('/metrics', async (c) => {
   try {
-    const platform = (c.req.query('platform') || 'piperx') as 'piperx' | 'storyhunt';
+    //目前先只管piperx
+    const platform = 'piperx';
     const pairIds = c.req.query('pairIds');
 
     let ids: string[];
@@ -95,55 +96,50 @@ tradesRouter.get('/metrics', async (c) => {
     const nowMicro = Date.now() * 1000; 
     const cutoffMicro = nowMicro - 24 * 60 * 60 * 1_000_000; 
 
-    const grouped: Record<
-      string,
-      {
-        token0: { id: string; symbol: string };
-        token1: { id: string; symbol: string };
-        volume24h: number;
-        volume7d: number;
-        volume14d: number;
-        // daily: { timestamp: number; volumeUSD: number; volumeNative: number }[];
+    // 最近 24h 的交易量
+    const last24h = hourlyData.hourlyVolumes.filter(
+      (v) => parseInt(v.timestamp) >= cutoffMicro
+    );
+    const volume24h = last24h.reduce((a, b) => a + parseFloat(b.volumeUSD), 0);
+
+    // 最近 7d 和 30d
+    const vols = dailyData.dailyVolumes.map((v) => parseFloat(v.volumeUSD));
+    const volume7d = vols.slice(0, 7).reduce((a, b) => a + b, 0);
+    const volume30d = vols.slice(0, 30).reduce((a, b) => a + b, 0);
+
+    const result = {
+      "piperx_dex": {
+        "metrics": {
+          "24h": volume24h,
+          "7d": volume7d,
+          "30d": volume30d,
+        }
+      },
+      "storyhunt_dex": {
+        "metrics": {
+          "24h": 0,
+          "7d": 0,
+          "30d": 0,
+        }
+      },
+      "mimboku_aggregator": {
+        "metrics": {
+          "24h": 0,
+          "7d": 0,
+          "30d": 0,
+        }
+      },
+      "piperx_aggregator": {
+        "metrics": {
+          "24h": 0,
+          "7d": 0,
+          "30d": 0,
+        }
       }
-    > = {};
+    };
+    
 
-    ids.forEach((id) => {
-      const vols = dailyData.dailyVolumes
-        .filter((v) => v.pair.id.toLowerCase() === id)
-        .map((v) => ({
-          timestamp: parseInt(v.timestamp),
-          volumeUSD: parseFloat(v.volumeUSD),
-          volumeNative: parseFloat(v.volumeNative),
-        }));
-
-      const hourlyVols = hourlyData.hourlyVolumes
-        .filter((v) => v.pair.id.toLowerCase() === id)
-        .map((v) => ({
-          timestamp: parseInt(v.timestamp),
-          volumeUSD: parseFloat(v.volumeUSD),
-          volumeNative: parseFloat(v.volumeNative),
-        }));
-
-      const last24h = hourlyVols.filter((v) => v.timestamp >= cutoffMicro);
-      const volume24h = last24h.reduce((a, b) => a + b.volumeUSD, 0);
-
-      grouped[id] = {
-        token0: {
-          id: dailyData.dailyVolumes.find((v) => v.pair.id.toLowerCase() === id)?.pair.token0.id ?? "",
-          symbol: dailyData.dailyVolumes.find((v) => v.pair.id.toLowerCase() === id)?.pair.token0.symbol ?? "",
-        },
-        token1: {
-          id: dailyData.dailyVolumes.find((v) => v.pair.id.toLowerCase() === id)?.pair.token1.id ?? "",
-          symbol: dailyData.dailyVolumes.find((v) => v.pair.id.toLowerCase() === id)?.pair.token1.symbol ?? "",
-        },
-        volume24h,
-        volume7d: vols.slice(0, 7).reduce((a, b) => a + b.volumeUSD, 0),
-        volume14d: vols.slice(0, 30).reduce((a, b) => a + b.volumeUSD, 0),
-        // daily: vols,
-      };
-    });
-
-    return c.json({ platform, pools: grouped });
+    return c.json(result);
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }

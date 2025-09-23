@@ -41,7 +41,8 @@ type TokenSwapResponse = {
 
 userStatsRouter.get('/metrics', async (c) => {
     try {
-        const platform = (c.req.query('platform') || 'piperx') as 'piperx' | 'storyhunt';
+        // const platform = (c.req.query('platform') || 'piperx') as 'piperx' | 'storyhunt';
+        const platform = 'piperx'; //目前先只管piperx
         const now = Date.now() * 1000;
         const defaultStart = now - 30 * 24 * 60 * 60 * 1_000_000;
         const hasUserTime = !!(c.req.query('startTime') && c.req.query('endTime'));
@@ -64,6 +65,7 @@ userStatsRouter.get('/metrics', async (c) => {
         if (!pairIds.length) {
             return c.json({ error: 'No valid pairIds found' }, 400);
         }
+
 
         let swaps: TokenSwap[] = [];
         let skip = 0;
@@ -88,47 +90,52 @@ userStatsRouter.get('/metrics', async (c) => {
             }
         }
 
+        let result: any;
+
         if (hasUserTime) {
             const uniqueUsers = new Set(swaps.map(s => s.account.id.toLowerCase()));
-            return c.json({
-                platform,
-                metrics: {
-                    uniqueUsers: {
-                        custom: uniqueUsers.size
+            result = {
+                "piperx": {
+                    "metrics": { "uniqueUsers": { "custom": uniqueUsers.size } }
+                }
+            };
+        } else {
+            const unique1d = new Set<string>();
+            const unique7d = new Set<string>();
+            const unique30d = new Set<string>();
+
+            for (const s of swaps) {
+                const acc = s.account.id.toLowerCase();
+                const ts = Number(s.timestamp);
+
+                if (ts >= now - 1 * 24 * 60 * 60 * 1_000_000) {
+                    unique1d.add(acc);
+                }
+                if (ts >= now - 7 * 24 * 60 * 60 * 1_000_000) {
+                    unique7d.add(acc);
+                }
+                if (ts >= now - 30 * 24 * 60 * 60 * 1_000_000) {
+                    unique30d.add(acc);
+                }
+            }
+
+            result = {
+                "piperx_dex": {
+                    "metrics": {
+                        "1d": unique1d.size,
+                        "7d": unique7d.size,
+                        "30d": unique30d.size
                     }
                 }
-            });
+            };
         }
 
-        const unique1d = new Set<string>();
-        const unique7d = new Set<string>();
-        const unique30d = new Set<string>();
+        // 其他平台先返回占位 0
+        result["storyhunt_dex"] = { "metrics": { "1d": 0, "7d": 0, "30d": 0 } };
+        result["mimboku_aggreator"] = { "metrics": { "1d": 0, "7d": 0, "30d": 0 } };
+        result["piperx_aggreator"] = { "metrics": { "1d": 0, "7d": 0, "30d": 0 } };
 
-        for (const s of swaps) {
-            const acc = s.account.id.toLowerCase();
-            const ts = parseInt(s.timestamp);
-
-            if (ts >= now - 1 * 24 * 60 * 60 * 1_000_000) {
-                unique1d.add(acc);
-            }
-            if (ts >= now - 7 * 24 * 60 * 60 * 1_000_000) {
-                unique7d.add(acc);
-            }
-            if (ts >= now - 30 * 24 * 60 * 60 * 1_000_000) {
-                unique30d.add(acc);
-            }
-        }
-
-        return c.json({
-            platform,
-            metrics: {
-                uniqueUsers: {
-                    "1d": unique1d.size,
-                    "7d": unique7d.size,
-                    "30d": unique30d.size,
-                }
-            }
-        });
+        return c.json(result);
 
     } catch (e: any) {
         console.error('Error in /metrics:', e);
